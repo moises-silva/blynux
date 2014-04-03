@@ -6,13 +6,27 @@ import os
 import sys
 import subprocess
 import time
+from distutils import spawn
 
 VIM_EXTENSIONS = ( 'c', 'cpp', 'sh', 'cs', 'py', 'pl', 'rb', 'js' )
 
-def setColor(c):
+def set_color(c):
     blynux_bin = 'blynux'
     cmd = [blynux_bin, '--device', '0', '--color', c]
     subprocess.call(cmd)
+
+def screensaver_active():
+    try:
+        ssbin = spawn.find_executable('gnome-screensaver-command')
+        if ssbin is None:
+            return False
+        cmd = [ssbin, '-q']
+        o = subprocess.check_output(cmd)
+        if 'inactive' in o:
+            return False
+        return True
+    except:
+        return False
 
 def is_vim_coding(proc):
     if proc.name != 'vim':
@@ -31,12 +45,18 @@ def is_vim_coding(proc):
         return True
     return False
 
-timeout = 15
+timeout = 10
 timer = 0
 busy = False
-setColor('green')
+sleep_interval = 1
+set_color('green')
 try:
     while True:
+        if screensaver_active():
+            set_color('OFF')
+            busy = False
+            time.sleep(sleep_interval)
+            continue
         vim_found = False
         for proc in psutil.process_iter():
             if is_vim_coding(proc):
@@ -45,7 +65,7 @@ try:
 
         if vim_found:
             if not busy:
-                setColor('red')
+                set_color('red')
                 busy = True
                 timer = timeout
 
@@ -53,9 +73,9 @@ try:
             timer = timer - 1
             if timer == 0:
                 busy = False
-                setColor('green')
+                set_color('green')
 
-        time.sleep(1)
+        time.sleep(sleep_interval)
 except KeyboardInterrupt:
     pass
 
