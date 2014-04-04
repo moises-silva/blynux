@@ -13,6 +13,13 @@ from logging.handlers import SysLogHandler
 
 VIM_EXTENSIONS = ( 'c', 'cpp', 'sh', 'cs', 'py', 'pl', 'rb', 'js' )
 
+timeout = 10
+timer = 0
+busy = False
+sleep_interval = 1
+ssaver = False
+last_color = ''
+
 logger = logging.getLogger(os.path.basename(sys.argv[0]))
 logger.setLevel(logging.INFO)
 formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
@@ -37,10 +44,14 @@ if sys.stdout.isatty():
     logger.addHandler(console_handler)
 
 def set_color(c):
+    global last_color
     logger.info('Setting blync color to {0}'.format(c))
     blynux_bin = spawn.find_executable('blynux')
     cmd = [blynux_bin, '--device', '0', '--color', c]
     subprocess.call(cmd)
+    if 'OFF' not in c:
+        last_color = c
+    logger.info('Last color is now {0}'.format(last_color))
 
 def screensaver_active():
     try:
@@ -72,25 +83,20 @@ def is_vim_coding(proc):
         return True
     return False
 
-timeout = 10
-timer = 0
-busy = False
-sleep_interval = 1
-ssaver = False
-set_color('green')
 try:
+    set_color('green')
     while True:
         if screensaver_active():
             if not ssaver:
                 logger.info('Screensaver is now active, disabling blync')
                 set_color('OFF')
-                busy = False
                 ssaver = True
             time.sleep(sleep_interval)
             continue
         elif ssaver:
             logger.info('Screensaver is now inactive')
             ssaver = False
+            set_color(last_color)
 
         vim_found = False
         for proc in psutil.process_iter():
@@ -115,6 +121,6 @@ except KeyboardInterrupt:
     logger.info('KeyboardInterrupt received')
     pass
 except Exception, e:
-    logger.error('Exception caught: {0}}'.format(str(e)))
+    logger.error('Exception caught: {0}'.format(str(e)))
 
 logger.info('Terminating')
