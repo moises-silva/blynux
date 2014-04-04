@@ -6,12 +6,39 @@ import os
 import sys
 import subprocess
 import time
+import os
+import logging
 from distutils import spawn
+from logging.handlers import SysLogHandler
 
 VIM_EXTENSIONS = ( 'c', 'cpp', 'sh', 'cs', 'py', 'pl', 'rb', 'js' )
 
+logger = logging.getLogger(os.path.basename(sys.argv[0]))
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+syslog_handler = SysLogHandler('/dev/log')
+syslog_handler.setFormatter(formatter)
+logger.addHandler(syslog_handler)
+if sys.stdout.isatty():
+    try:
+        import colorlog
+        colors = {
+            'CRITICAL': 'bold_red',
+            'DEBUG': 'yellow',
+            'ERROR': 'bold_red',
+            'INFO': 'green',
+            'WARNING': 'red',
+        }
+        formatter = colorlog.ColoredFormatter('%(log_color)s[%(levelname)s] %(message)s', log_colors=colors)
+    except:
+        pass
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
 def set_color(c):
-    blynux_bin = 'blynux'
+    logger.info('Setting blync color to {0}'.format(c))
+    blynux_bin = spawn.find_executable('blynux')
     cmd = [blynux_bin, '--device', '0', '--color', c]
     subprocess.call(cmd)
 
@@ -49,14 +76,22 @@ timeout = 10
 timer = 0
 busy = False
 sleep_interval = 1
+ssaver = False
 set_color('green')
 try:
     while True:
         if screensaver_active():
-            set_color('OFF')
-            busy = False
+            if not ssaver:
+                logger.info('Screensaver is now active, disabling blync')
+                set_color('OFF')
+                busy = False
+                ssaver = True
             time.sleep(sleep_interval)
             continue
+        elif ssaver:
+            logger.info('Screensaver is now inactive')
+            ssaver = False
+
         vim_found = False
         for proc in psutil.process_iter():
             if is_vim_coding(proc):
@@ -77,5 +112,9 @@ try:
 
         time.sleep(sleep_interval)
 except KeyboardInterrupt:
+    logger.info('KeyboardInterrupt received')
     pass
+except Exception, e:
+    logger.error('Exception caught: {0}}'.format(str(e)))
 
+logger.info('Terminating')
